@@ -1,6 +1,7 @@
 # 喝水提醒后端服务
 
 一个基于Node.js和Express的后端服务，通过微信订阅消息向用户发送喝水提醒。
+前端代码在[这里](https://github.com/cyan0714/wx-mp-drink-water)
 
 ## 项目简介
 
