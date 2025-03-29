@@ -53,8 +53,8 @@
 
 1. 克隆仓库
    ```bash
-   git clone <repository-url>
-   cd water-reminder-backend
+   git clone https://github.com/cyan0714/wx-mp-drink-water-api
+   cd wx-mp-drink-water-api
    ```
 
 2. 安装依赖
