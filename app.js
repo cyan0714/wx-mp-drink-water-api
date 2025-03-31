@@ -82,9 +82,24 @@ app.get('/', (req, res) => {
   res.send('Water Reminder Backend is running!');
 });
 
-// Setup scheduled job - every minute
-const reminderJob = schedule.scheduleJob('* * * * *', async () => {
-  console.log('Running scheduled water reminder job...');
+// Setup scheduled job - at specific times (6:55, 9:25, 10:55, 13:25, 15:25, 16:55, 19:25, 20:55)
+const reminderTimes = [
+  '55 6 * * *',  // 6:55
+  '25 9 * * *',  // 9:25
+  '55 10 * * *', // 10:55
+  '25 13 * * *', // 13:25
+  '25 15 * * *', // 15:25
+  '55 16 * * *', // 16:55
+  '25 19 * * *', // 19:25
+  '55 20 * * *'  // 20:55
+  // '* * * * *'
+];
+
+// 创建多个定时任务，每个时间点一个
+const reminderJobs = reminderTimes.map(time => {
+  return schedule.scheduleJob(time, async () => {
+    console.log(`Running scheduled water reminder job at ${new Date().toLocaleTimeString()}...`);
+    console.log('Running scheduled water reminder job...');
   try {
     // Fetch all subscribed users from the database
     const users = await User.find({ subscribed: true });
@@ -104,9 +119,10 @@ const reminderJob = schedule.scheduleJob('* * * * *', async () => {
       await user.save();
     }
     console.log('Water reminder sent successfully');
-  } catch (error) {
-    console.error('Error sending water reminder:', error.message);
-  }
+    } catch (error) {
+      console.error('Error sending water reminder:', error.message);
+    }
+  });
 });
 
 // Connect to MongoDB and start server

@@ -52,10 +52,9 @@ const sendWaterReminder = async (openid, nickname) => {
     const token = await getAccessToken();
     const url = `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${token}`;
     
-    // 获取当前时间
-    const now = new Date();
-    const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-    console.log('timeString:', timeString); // Add this line to log the timeString
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const timeString = `${now.getUTCHours()}:${now.getUTCMinutes().toString().padStart(2, '0')}`;
+    console.log('北京时间:', timeString);
     
     // 构建消息数据
     const data = {
