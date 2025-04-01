@@ -2,8 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const schedule = require('node-schedule');
 const { sendWaterReminder } = require('./services/wechatService');
+const { setupExpirationChecker, createWaterTask, createDailyTasks, setupDailyTasksScheduler } = require('./services/waterTaskService');
 const connectDB = require('./config/db');
 const User = require('./models/User');
+const WaterTask = require('./models/WaterTask');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,6 +24,7 @@ app.use(cors({
 
 // Routes
 app.use('/api/wechat', require('./routes/wechatRoutes'));
+app.use('/api/water-task', require('./routes/waterTaskRoutes'));
 
 // 添加登录接口获取openid和用户信息
 app.post('/api/login', async (req, res) => {
@@ -82,16 +85,16 @@ app.get('/', (req, res) => {
   res.send('Water Reminder Backend is running!');
 });
 
-// Setup scheduled job - at specific times (6:55, 9:25, 10:55, 13:25, 15:25, 16:55, 19:25, 20:55)
+// Setup scheduled job - at specific times (7:00, 9:30, 11:00, 13:30, 15:30, 17:00, 19:30, 21:00)
 const reminderTimes = [
-  '55 6 * * *',  // 6:55
-  '25 9 * * *',  // 9:25
-  '55 10 * * *', // 10:55
-  '25 13 * * *', // 13:25
-  '25 15 * * *', // 15:25
-  '55 16 * * *', // 16:55
-  '25 19 * * *', // 19:25
-  '55 20 * * *'  // 20:55
+  '0 7 * * *',   // 7:00
+  '30 9 * * *',  // 9:30
+  '0 11 * * *',  // 11:00
+  '30 13 * * *', // 13:30
+  '30 15 * * *', // 15:30
+  '0 17 * * *',  // 17:00
+  '30 19 * * *', // 19:30
+  '0 21 * * *'   // 21:00
   // '* * * * *'
 ];
 
@@ -111,11 +114,15 @@ const reminderJobs = reminderTimes.map(time => {
     
     console.log(`Sending water reminder to ${users.length} users`);
     
+    const now = new Date();
+    const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
     for (const user of users) {
+      // 发送提醒消息
       await sendWaterReminder(user.openid, user.nickname);
       
       // Update lastReminded timestamp
-      user.lastReminded = new Date();
+      user.lastReminded = now;
       await user.save();
     }
     console.log('Water reminder sent successfully');
@@ -130,6 +137,14 @@ connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log('Water reminder scheduled job is active');
+    
+    // 启动过期任务检查器
+    // setupExpirationChecker();
+    // console.log('Task expiration checker is active');
+    
+    // 启动每日任务创建调度器
+    setupDailyTasksScheduler();
+    console.log('Daily water tasks scheduler is active');
   });
 }).catch(err => {
   console.error('Failed to connect to MongoDB:', err.message);
