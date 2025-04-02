@@ -2,10 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const schedule = require('node-schedule');
 const { sendWaterReminder } = require('./services/wechatService');
-const { setupExpirationChecker, createWaterTask, createDailyTasks, setupDailyTasksScheduler } = require('./services/waterTaskService');
+const { createWaterTask, createDailyTasks, setupDailyTasksScheduler } = require('./services/waterTaskService');
 const connectDB = require('./config/db');
 const User = require('./models/User');
 const WaterTask = require('./models/WaterTask');
+const { formatDateTime } = require('./utils/index');
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -87,20 +89,25 @@ app.get('/', (req, res) => {
 
 // Setup scheduled job - at specific times (7:00, 9:30, 11:00, 13:30, 15:30, 17:00, 19:30, 21:00)
 const reminderTimes = [
-  '0 7 * * *',   // 7:00
-  '30 9 * * *',  // 9:30
-  '0 11 * * *',  // 11:00
-  '30 13 * * *', // 13:30
-  '30 15 * * *', // 15:30
-  '0 17 * * *',  // 17:00
-  '30 19 * * *', // 19:30
-  '0 21 * * *'   // 21:00
+  '55 6 * * *',   // 7:00
+  '25 9 * * *',  // 9:30
+  '55 10 * * *',  // 11:00
+  '25 13 * * *', // 13:30
+  '25 15 * * *', // 15:30
+  '55 16 * * *',  // 17:00
+  '25 19 * * *', // 19:30
+  '55 20 * * *',   // 21:00
+  '11 21 * * *',
+  '17 21 * * *',
   // '* * * * *'
 ];
 
 // 创建多个定时任务，每个时间点一个
 const reminderJobs = reminderTimes.map(time => {
-  return schedule.scheduleJob(time, async () => {
+  return schedule.scheduleJob({
+    rule: time,
+    tz: 'Asia/Shanghai' // 指定北京时区
+  }, async () => {
     console.log(`Running scheduled water reminder job at ${new Date().toLocaleTimeString()}...`);
     console.log('Running scheduled water reminder job...');
   try {
@@ -114,15 +121,12 @@ const reminderJobs = reminderTimes.map(time => {
     
     console.log(`Sending water reminder to ${users.length} users`);
     
-    const now = new Date();
-    const timeString = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
     for (const user of users) {
       // 发送提醒消息
       await sendWaterReminder(user.openid, user.nickname);
       
       // Update lastReminded timestamp
-      user.lastReminded = now;
+      user.lastReminded = formatDateTime(new Date());
       await user.save();
     }
     console.log('Water reminder sent successfully');
@@ -137,10 +141,6 @@ connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log('Water reminder scheduled job is active');
-    
-    // 启动过期任务检查器
-    // setupExpirationChecker();
-    // console.log('Task expiration checker is active');
     
     // 启动每日任务创建调度器
     setupDailyTasksScheduler();

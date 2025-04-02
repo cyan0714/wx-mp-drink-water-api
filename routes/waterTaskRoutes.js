@@ -85,6 +85,58 @@ router.post('/complete', async (req, res) => {
 });
 
 /**
+ * @route   POST /api/water-task/cancel
+ * @desc    Cancel a completed water task
+ * @access  Public
+ */
+router.post('/cancel', async (req, res) => {
+  try {
+    const { openid, taskId } = req.body;
+
+    if (!openid) {
+      return res.status(400).json({ success: false, error: '缺少openid参数' });
+    }
+
+    if (!taskId) {
+      return res.status(400).json({ success: false, error: '缺少taskId参数' });
+    }
+
+    const task = await WaterTask.findById(taskId);
+
+    if (!task) {
+      return res.status(404).json({ success: false, error: '任务不存在' });
+    }
+
+    if (task.openid !== openid) {
+      return res.status(403).json({ success: false, error: '无权操作此任务' });
+    }
+
+    // Only completed tasks can be cancelled
+    if (task.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        error: '只有已完成的任务可以被取消'
+      });
+    }
+
+    // Reset task status to pending and clear completedAt
+    task.status = 'pending';
+    task.completedAt = null;
+    await task.save();
+
+    return res.json({
+      success: true,
+      message: '任务已取消完成',
+      task
+    });
+  } catch (error) {
+    console.error('取消完成任务失败:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+/**
  * @route   GET /api/water-task/list
  * @desc    获取用户的喝水任务列表
  * @access  Public
@@ -228,7 +280,52 @@ router.delete('/delete/:openid', async (req, res) => {
   }
 });
 
-module.exports = router;
+/**
+ * @route   GET /api/water-task/today-water/:openid
+ * @desc    获取用户当天喝水量
+ * @access  Public
+ */
+router.get('/today-water/:openid', async (req, res) => {
+  try {
+    const { openid } = req.params;
 
+    if (!openid) {
+      return res.status(400).json({ success: false, error: '缺少openid参数' });
+    }
+
+    // 获取今天的开始和结束时间
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // 查询今天已完成的任务
+    const completedTasks = await WaterTask.find({
+      openid,
+      status: 'completed',
+      scheduledTime: {
+        $gte: formatDateTime(today),
+        $lt: formatDateTime(tomorrow)
+      }
+    }).sort({ scheduledTime: 1 });
+
+    // 计算总饮水量
+    let totalWater = 0;
+    completedTasks.forEach(task => {
+      totalWater += task.waterAmount;
+    });
+
+    res.json({
+      success: true,
+      totalWater,
+      completedCount: completedTasks.length,
+      tasks: completedTasks
+    });
+  } catch (error) {
+    console.error('获取当天喝水量失败:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 module.exports = router;

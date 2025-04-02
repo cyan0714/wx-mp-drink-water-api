@@ -1,19 +1,6 @@
 const WaterTask = require('../models/WaterTask');
 const schedule = require('node-schedule');
-
-// 格式化日期为指定格式的字符串
-const formatDateTime = (date) => {
-  const pad = (num) => String(num).padStart(2, '0');
-  
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-  const seconds = pad(date.getSeconds());
-  
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
+const { formatDateTime } = require('../utils/index');
 
 /**
  * 创建喝水任务
@@ -45,63 +32,6 @@ const createWaterTask = async (openid, scheduledTime, waterAmount = 250) => {
     return task;
   } catch (error) {
     console.error('创建喝水任务失败:', error);
-    throw error;
-  }
-};
-
-/**
- * 更新任务状态为已完成
- * @param {String} taskId 任务ID
- */
-const completeWaterTask = async (taskId) => {
-  try {
-    const task = await WaterTask.findById(taskId);
-    
-    if (!task) {
-      throw new Error('任务不存在');
-    }
-    
-    if (task.status !== 'pending') {
-      throw new Error(`任务已${task.status === 'completed' ? '完成' : '过期'}，无法再次完成`);
-    }
-    
-    task.status = 'completed';
-    task.completedAt = formatDateTime(new Date());
-    await task.save();
-    
-    return task;
-  } catch (error) {
-    console.error('完成喝水任务失败:', error);
-    throw error;
-  }
-};
-
-/**
- * 检查并更新过期的任务
- */
-const checkExpiredTasks = async () => {
-  try {
-    const now = new Date();
-    // 查找所有已过期但仍为pending状态的任务
-    // 设置15分钟的宽限期
-    const cutoffTime = new Date(now.getTime() - 15 * 60 * 1000);
-    const formattedCutoffTime = formatDateTime(cutoffTime);
-    
-    const expiredTasks = await WaterTask.find({
-      status: 'pending',
-      scheduledTime: { $lt: formattedCutoffTime }
-    });
-    
-    console.log(`找到 ${expiredTasks.length} 个过期任务`);
-    
-    for (const task of expiredTasks) {
-      task.status = 'missed';
-      await task.save();
-    }
-    
-    return expiredTasks.length;
-  } catch (error) {
-    console.error('检查过期任务失败:', error);
     throw error;
   }
 };
@@ -161,19 +91,6 @@ const deleteUserDailyTasks = async (openid) => {
   }
 };
 
-// 设置定时任务，每5分钟检查一次过期任务
-const setupExpirationChecker = () => {
-  return schedule.scheduleJob('*/5 * * * *', async () => {
-    console.log('检查过期任务...');
-    try {
-      const count = await checkExpiredTasks();
-      console.log(`已将 ${count} 个任务标记为过期`);
-    } catch (error) {
-      console.error('自动检查过期任务失败:', error);
-    }
-  });
-};
-
 /**
  * 设置每日凌晨自动创建喝水任务的定时器
  * 在每天00:00时为所有订阅用户创建当天的喝水任务
@@ -212,6 +129,7 @@ const checkAndCreateTodayTasks = async () => {
       // 检查用户今天是否已有任务
       const existingTasks = await WaterTask.find({
         openid: user.openid,
+        // 大于等于今天凌晨0点，小于明天凌晨0点
         scheduledTime: { $gte: formattedToday, $lt: formattedTomorrow }
       });
       
@@ -233,10 +151,7 @@ const checkAndCreateTodayTasks = async () => {
 // 不要忘记在模块导出中添加新函数
 module.exports = {
   createWaterTask,
-  completeWaterTask,
-  checkExpiredTasks,
   createDailyTasks,
-  setupExpirationChecker,
   setupDailyTasksScheduler,
   checkAndCreateTodayTasks,  // 添加新函数到导出
   deleteUserDailyTasks
